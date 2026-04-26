@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+<meta charset="UTF-8">
+<title>CryptoChat</title>
+
+<style>
+
+body {
+    margin: 0;
+    font-family: Arial;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    color: white;
+    scroll-snap-type: y mandatory;
+    transition: 0.5s;
+}
+
+/* 🌧 MATRIX MODE */
+body.matrix {
+    background: black !important;
+}
+
+/* HEADER */
+.header {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    padding: 15px;
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(10px);
+    font-size: 22px;
+    text-align: center;
+    z-index: 1000;
+}
+
+/* SECTIONS */
+.section {
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    scroll-snap-align: start;
+    padding-top: 60px;
+}
+
+/* CARD */
+.card {
+    width: 450px;
+    max-width: 90%;
+    background: rgba(255,255,255,0.1);
+    padding: 25px;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+}
+
+/* INPUT */
+input, select, textarea {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 10px;
+    border: none;
+    font-size: 15px;
+}
+
+/* BUTTON */
+button {
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: none;
+    background: orange;
+    cursor: pointer;
+}
+
+/* RESULT */
+.result {
+    margin-top: 15px;
+    padding: 15px;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.4);
+    border-left: 5px solid orange;
+}
+
+.note {
+    font-size: 14px;
+    opacity: 0.85;
+}
+
+.example {
+    font-size: 13px;
+    color: #ffd27f;
+}
+
+/* MODE BUTTON */
+.mode-btn {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid lime;
+    background: rgba(0,0,0,0.4);
+    color: lime;
+    cursor: pointer;
+    z-index: 2000;
+}
+
+/* MATRIX */
+#matrix {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: -1;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="header">🔐 CryptoChat</div>
+
+<button class="mode-btn" onclick="toggleMode()">●</button>
+
+<canvas id="matrix"></canvas>
+
+<!-- 🔐 ENCRYPT -->
+<div class="section">
+<div class="card">
+
+<h2>Шифрлау</h2>
+
+<div class="note" id="desc">
+Reverse – мәтінді кері айналдырады
+</div>
+
+<div class="example" id="example">
+Мысал: HELLO → OLLEH
+</div>
+
+<textarea id="text"></textarea>
+
+<select id="method">
+    <option value="reverse" selected>Reverse</option>
+    <option value="caesar">Caesar</option>
+    <option value="vigenere">Vigenère</option>
+</select>
+
+<!-- 🔥 SHIFT қайта жұмыс істейді -->
+<div id="shiftBox" style="display:none;">
+    <input type="number" id="shift" value="3" placeholder="Жылжыту саны">
+</div>
+
+<div id="keyBox" style="display:none;">
+    <input type="text" id="key" placeholder="Кілт">
+</div>
+
+<button onclick="encrypt()">Шифрлау</button>
+<button onclick="decrypt()">Ашу</button>
+
+<div class="result">
+    <div id="label"></div>
+    <div id="output"></div>
+</div>
+
+</div>
+</div>
+
+<!-- 🔑 PASSWORD -->
+<div class="section">
+<div class="card">
+
+<h2>Пароль анализ</h2>
+
+<input type="text" id="password">
+<button onclick="checkPassword()">Анализ жасау</button>
+
+<div id="passwordResult"></div>
+
+</div>
+</div>
+
+<script>
+
+/* MODE */
+let isMatrix = false;
+let interval = null;
+
+function toggleMode(){
+    isMatrix = !isMatrix;
+    document.body.classList.toggle("matrix");
+
+    if(isMatrix) startMatrix();
+    else stopMatrix();
+}
+
+/* MATRIX */
+function startMatrix(){
+    if(interval) return;
+
+    let c = document.getElementById("matrix");
+    let ctx = c.getContext("2d");
+
+    c.width = window.innerWidth;
+    c.height = window.innerHeight;
+
+    let letters = "01".split("");
+    let font = 14;
+    let cols = c.width / font;
+    let drops = [];
+
+    for(let i=0;i<cols;i++) drops[i]=1;
+
+    interval = setInterval(()=>{
+
+        if(!document.body.classList.contains("matrix")) return;
+
+        ctx.fillStyle="rgba(0,0,0,0.05)";
+        ctx.fillRect(0,0,c.width,c.height);
+
+        ctx.fillStyle="#0f0";
+        ctx.font=font+"px monospace";
+
+        for(let i=0;i<drops.length;i++){
+            let t = letters[Math.floor(Math.random()*letters.length)];
+            ctx.fillText(t,i*font,drops[i]*font);
+
+            if(drops[i]*font>c.height && Math.random()>0.975)
+                drops[i]=0;
+
+            drops[i]++;
+        }
+
+    },33);
+}
+
+function stopMatrix(){
+    clearInterval(interval);
+    interval = null;
+
+    let c = document.getElementById("matrix");
+    let ctx = c.getContext("2d");
+    ctx.clearRect(0,0,c.width,c.height);
+}
+
+/* 🔥 METHOD CHANGE (FIXED) */
+document.getElementById("method").addEventListener("change", function(){
+
+    let m = this.value;
+
+    document.getElementById("shiftBox").style.display =
+        (m === "caesar") ? "block" : "none";
+
+    document.getElementById("keyBox").style.display =
+        (m === "vigenere") ? "block" : "none";
+
+    if(m==="reverse"){
+        desc.innerText="Reverse – мәтінді кері айналдырады";
+        example.innerText="Мысал: HELLO → OLLEH";
+    }
+
+    if(m==="caesar"){
+        desc.innerText="Caesar – әріпті жылжытады";
+        example.innerText="Мысал: ABC +3 → DEF";
+    }
+
+    if(m==="vigenere"){
+        desc.innerText="Vigenère – кілт арқылы шифр";
+        example.innerText="Мысал: HELLO + KEY → RIJVS";
+    }
+});
+function vigenereEncrypt(text, key){
+    key = key.toUpperCase();
+    let result = "";
+    let j = 0;
+
+    for(let i=0;i<text.length;i++){
+        let char = text[i];
+
+        if(/[a-zA-Z]/.test(char)){
+            let shift = key.charCodeAt(j % key.length) - 65;
+            let base = char === char.toUpperCase() ? 65 : 97;
+
+            result += String.fromCharCode(
+                (char.charCodeAt(0) - base + shift) % 26 + base
+            );
+
+            j++;
+        } else {
+            result += char;
+        }
+    }
+
+    return result;
+}
+
+function vigenereDecrypt(text, key){
+    key = key.toUpperCase();
+    let result = "";
+    let j = 0;
+
+    for(let i=0;i<text.length;i++){
+        let char = text[i];
+
+        if(/[a-zA-Z]/.test(char)){
+            let shift = key.charCodeAt(j % key.length) - 65;
+            let base = char === char.toUpperCase() ? 65 : 97;
+
+            result += String.fromCharCode(
+                (char.charCodeAt(0) - base - shift + 26) % 26 + base
+            );
+
+            j++;
+        } else {
+            result += char;
+        }
+    }
+
+    return result;
+}
+/* CRYPTO */
+function encrypt(){
+    let text = document.getElementById("text").value;
+    let m = document.getElementById("method").value;
+    let shift = parseInt(document.getElementById("shift").value)||0;
+    let key = document.getElementById("key").value;
+
+    let res="";
+
+    if(m==="reverse") res=text.split('').reverse().join('');
+    if(m==="caesar") res=text.split('').map(c=>String.fromCharCode(c.charCodeAt(0)+shift)).join('');
+    if(m==="vigenere") res=vigenereEncrypt(text,key);
+
+    output.innerText=res;
+}
+function decrypt(){
+
+    let text = document.getElementById("text").value;
+    let m = document.getElementById("method").value;
+    let shift = parseInt(document.getElementById("shift").value)||0;
+    let key = document.getElementById("key").value;
+
+    let res="";
+
+    if(m==="reverse") res=text.split('').reverse().join('');
+    if(m==="caesar") res=text.split('').map(c=>String.fromCharCode(c.charCodeAt(0)-shift)).join('');
+    if(m==="vigenere") res=vigenereDecrypt(text,key);
+
+    output.innerText=res;
+}
+
+
+/* PASSWORD */
+function generatePassword(base){
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*";
+    let res = base;
+
+    for(let i=0;i<4;i++){
+        res += chars[Math.floor(Math.random()*chars.length)];
+    }
+    return res;
+}
+
+function checkPassword(){
+
+    let pass = document.getElementById("password").value;
+
+    let score = 0;
+    let feedback = [];
+
+    if(pass.length >= 8) score++; else feedback.push("Ұзындық аз");
+    if(pass.match(/[A-Z]/)) score++; else feedback.push("Бас әріп жоқ");
+    if(pass.match(/[0-9]/)) score++; else feedback.push("Сан жоқ");
+    if(pass.match(/[^A-Za-z0-9]/)) score++; else feedback.push("Символ жоқ");
+
+    let level =
+        score <= 1 ? "❌ Әлсіз" :
+        score <= 3 ? "⚠ Орташа" :
+        "✅ Күшті";
+
+    let suggestions = "";
+    for(let i=0;i<3;i++){
+        suggestions += "🔐 " + generatePassword(pass) + "<br>";
+    }
+
+    document.getElementById("passwordResult").innerHTML = `
+        <div style="font-size:16px; line-height:1.6">
+        <b>${level}</b><br><br>
+        📊 Анализ: ${feedback.join(", ") || "Барлығы жақсы"}<br><br>
+        💡 Ұсыныстар:<br>${suggestions}
+        </div>
+    `;
+}
+
+</script>
+
+</body>
+</html>
